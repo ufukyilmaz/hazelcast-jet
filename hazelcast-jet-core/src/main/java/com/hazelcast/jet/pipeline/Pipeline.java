@@ -105,4 +105,13 @@ public interface Pipeline extends Serializable {
      */
     @Nonnull
     String toDotString();
+
+
+    /**
+     * Context passed to {@link #toDag()}.
+     * @since 4.3
+     */
+    interface Context {
+        int defaultLocalParallelism();
+    }
 }
