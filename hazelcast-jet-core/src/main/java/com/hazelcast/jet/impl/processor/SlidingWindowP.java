@@ -41,6 +41,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -408,16 +409,18 @@ public class SlidingWindowP<K, A, R, OUT> extends AbstractProcessor {
         assert combineFn != null : "combineFn == null";
         long startTs = frameTs - winPolicy.windowSize() + winPolicy.frameSize();
         if (startTs > flippedAtTs) {
+            Map<K, A> keyToAcc = new HashMap<>();
             for (long ts = frameTs;
                  ts >= startTs;
                  ts -= winPolicy.frameSize()
             ) {
-                Map<K, A> keyToAcc = new HashMap<>();
-                Map<K, A> frame = tsToKeyToAcc.computeIfAbsent(ts, x -> emptyMap());
+                Map<K, A> frame = tsToKeyToAcc.computeIfAbsent(ts, x -> new HashMap<>());
                 for (Entry<K, A> entry : frame.entrySet()) {
-                    combineFn.accept(
-                            frame.computeIfAbsent(entry.getKey(), k -> aggrOp.createFn().get()),
-                            entry.getValue());
+                    A a = keyToAcc.computeIfAbsent(entry.getKey(), k -> aggrOp.createFn().get());
+                    combineFn.accept(a, entry.getValue());
+                    A copyOfA = aggrOp.createFn().get();
+                    combineFn.accept(copyOfA, a);
+                    entry.setValue(a);
                 }
             }
             flippedAtTs = startTs;
