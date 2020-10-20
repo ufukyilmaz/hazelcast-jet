@@ -412,7 +412,7 @@ public class SlidingWindowP<K, A, R, OUT> extends AbstractProcessor {
                  ts >= startTs;
                  ts -= winPolicy.frameSize()
             ) {
-                A acc = aggrOp.createFn().get();
+                Map<K, A> keyToAcc = new HashMap<>();
                 Map<K, A> frame = tsToKeyToAcc.computeIfAbsent(ts, x -> emptyMap());
                 for (Entry<K, A> entry : frame.entrySet()) {
                     combineFn.accept(
