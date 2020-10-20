@@ -46,13 +46,16 @@ import com.hazelcast.map.IMap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.stream.Collector;
@@ -72,6 +75,64 @@ import static com.hazelcast.jet.impl.util.Util.checkSerializable;
  * @since 3.0
  */
 public final class AggregateOperations {
+
+    static class TwoStacks<A, R> {
+        private final SupplierEx<A> createFn;
+        private final BiConsumerEx<? super A, ? super A> combineFn;
+        private final FunctionEx<? super A, ? extends R> exportFn;
+        private final Deque<BackItem<A>> back = new ArrayDeque<>();
+        private final Deque<A> front = new ArrayDeque<>();
+
+        void insert(A v) {
+            back.addLast(new BackItem<>(v, plus(peekBack(), v)));
+        }
+
+        void evict() {
+            for (BackItem<A> item; (item = back.pollLast()) != null; ) {
+                front.addLast(plus(item.val, peekFront()));
+            }
+            front.removeLast();
+        }
+
+        R query() {
+            return exportFn.apply(plus(peekFront(), peekBack()));
+        }
+
+        TwoStacks(AggregateOperation1<A, A, R> aggrOp) {
+            createFn = aggrOp.createFn();
+            combineFn = Objects.requireNonNull(aggrOp.combineFn());
+            exportFn = aggrOp.exportFn();
+        }
+
+        A plus(A left, A right) {
+            A result = createFn.get();
+            combineFn.accept(result, left);
+            combineFn.accept(result, right);
+            return result;
+        }
+
+        A peekBack() {
+            return back.isEmpty() ? createFn.get() : back.peek().val;
+        }
+
+        A peekFront() {
+            return front.isEmpty() ? createFn.get() : front.peek();
+        }
+    }
+
+    static class BackItem<A> {
+        A val;
+        A agg;
+
+        BackItem(A val, A agg) {
+
+        }
+    }
+
+    public static void main(String[] args) {
+        AggregateOperation1<Long, MutableReference<Long>, Long> aggrOp =
+                minBy(ComparatorEx.comparingLong(Long::longValue));
+    }
 
     private AggregateOperations() {
     }
