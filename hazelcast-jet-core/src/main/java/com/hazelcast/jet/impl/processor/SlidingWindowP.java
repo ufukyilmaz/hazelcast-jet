@@ -423,19 +423,22 @@ public class SlidingWindowP<K, A, R, OUT> extends AbstractProcessor {
                     entry.setValue(a);
                 }
             }
-            flippedAtTs = startTs;
+            flippedAtTs = frameTs;
         }
+
         Map<K, A> window = new HashMap<>();
-        for (long ts = frameTs - winPolicy.windowSize() + winPolicy.frameSize();
-             ts <= frameTs;
-             ts += winPolicy.frameSize()
-        ) {
-            for (Entry<K, A> entry : tsToKeyToAcc.getOrDefault(ts, emptyMap()).entrySet()) {
-                combineFn.accept(
-                        window.computeIfAbsent(entry.getKey(), k -> aggrOp.createFn().get()),
-                        entry.getValue());
+
+        for (Entry<K, A> entry : tsToKeyToAcc.getOrDefault(frameTs, emptyMap()).entrySet()) {
+            A a = window.computeIfAbsent(entry.getKey(), k -> aggrOp.createFn().get());
+            combineFn.accept(a, entry.getValue());
+
+            long previousFrameTs = frameTs - winPolicy.frameSize();
+            if (previousFrameTs > flippedAtTs) {
+                combineFn.accept(a, tsToKeyToAcc.get(previousFrameTs).get(entry.getKey()));
             }
+            combineFn.accept(a, tsToKeyToAcc.get(startTs).get(entry.getKey()));
         }
+
         return window;
     }
 
